@@ -1,0 +1,62 @@
+import os
+import random
+import time
+from datetime import datetime, timedelta
+from google.cloud import pubsub_v1
+from faker import Faker
+import numpy as np
+
+PROJECT_ID = "clickstream-data-analysis"
+TOPIC = "clickstream-batch"
+NUM_MESSAGES = 10
+
+LINE = """\
+{remote_addr} - - [{time_local}] "{request_type} {request_path} HTTP/1.1" {status} {body_bytes_sent} "{http_referer}" "{http_user_agent}" {duration} {clicks} {purchase} {visit_type}\
+"""
+
+def generate_log_lines():
+    fake = Faker()
+    now = datetime.now()
+    remote_addr = fake.ipv4()
+    time_local = now.strftime('%d/%b/%Y:%H:%M:%S')
+    request_type = random.choice(["GET", "POST", "PUT"])
+    request_path = "/" + fake.uri_path()
+
+    status = np.random.choice([200, 401, 404], p = [0.9, 0.05, 0.05])
+    body_bytes_sent = random.choice(range(5, 1000, 1))
+    http_referer = fake.uri()
+    http_user_agent = fake.user_agent()
+    duration = random.choice(range(1, 1800, 1)) # in seconds
+    clicks = random.choice(range(1, 20, 1))
+    purchase = random.choice(["yes", "no"])
+    visit_type = random.choice(["returning", "first-time"])
+
+    log_line = LINE.format(
+        remote_addr=remote_addr,
+        time_local=time_local,
+        request_type=request_type,
+        request_path=request_path,
+        status=status,
+        body_bytes_sent=body_bytes_sent,
+        http_referer=http_referer,
+        http_user_agent=http_user_agent,
+        duration=duration,
+        clicks=clicks,
+        purchase=purchase,
+        visit_type=visit_type
+    )
+
+    return log_line
+
+publisher = pubsub_v1.PublisherClient()
+topic_path = publisher.topic_path(PROJECT_ID, TOPIC)
+
+for i in range(NUM_MESSAGES):
+    log_lines = ""
+    for j in range(10):
+        log_lines += generate_log_lines() + "\n"
+    data = log_lines.encode("utf-8")
+    future = publisher.publish(topic_path, data)
+    print(f"Published batch {i+1}: {data}")
+    time.sleep(1)
+

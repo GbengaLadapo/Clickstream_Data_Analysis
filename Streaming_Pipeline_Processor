@@ -79,5 +79,8 @@ def main(argv=None):
      | "Decode" >> beam.Map(lambda x: x.decode('utf-8'))
      | "Clean Data" >> beam.Map(regex_clean)
      | 'ParseCSV' >> beam.ParDo(Split())
-     | 'WriteToBigQuery' >> beam.io.WriteToBigQuery(known_args[0].output, schema=schema,
-                                                     write_disposition=beam.io
+     | 'WriteToBigQuery' >> beam.io.WriteToBigQuery(
+        known_args[0].output,
+        schema=schema,
+        write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
+        create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED)

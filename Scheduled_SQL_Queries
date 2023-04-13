@@ -1,4 +1,4 @@
-## Average duration spent on the site by users per store
+# Average duration spent on the site by users per store
 SELECT
     retail_store,
     ROUND(AVG(duration),2) AS average_duration_seconds
@@ -7,3 +7,180 @@ FROM
 GROUP BY
     retail_store
 ORDER BY 2 DESC;
+
+
+# Conversion rate (purchases/total visits) per store
+WITH total_visits AS (
+    SELECT
+        retail_store,
+        COUNT(*) AS visit_count
+    FROM
+        `clickstream-data-analysis.retail_clickstream_dataset.retail_table`
+    GROUP BY
+        retail_store
+),
+purchases AS (
+    SELECT
+        retail_store,
+        COUNT(*) AS purchase_count
+    FROM
+        `clickstream-data-analysis.retail_clickstream_dataset.retail_table`
+    WHERE
+        purchase = 'yes'
+    GROUP BY
+        retail_store
+)
+SELECT
+    t.retail_store,
+    p.purchase_count / t.visit_count * 100 AS conversion_rate
+FROM
+    total_visits t
+JOIN
+    purchases p
+ON
+    t.retail_store = p.retail_store
+ORDER BY
+    conversion_rate DESC;
+    
+    
+
+#Distribution of new vs. returning visitors per store
+SELECT
+    retail_store,
+    visit_type,
+    COUNT(*) AS visitor_count
+FROM
+    `clickstream-data-analysis.retail_clickstream_dataset.retail_table`
+GROUP BY
+    retail_store, visit_type
+ORDER BY
+    retail_store ASC, visit_type ASC;
+
+
+# Distribution of user actions across product categories
+SELECT
+    product_name,
+    action,
+    COUNT(*) AS action_count
+FROM
+    `clickstream-data-analysis.retail_clickstream_dataset.retail_table`
+GROUP BY
+    product_name, action;
+    
+
+
+# Most popular actions per browser
+SELECT
+    browser,
+    action,
+    COUNT(*) AS action_count
+FROM
+    `clickstream-data-analysis.retail_clickstream_dataset.retail_table`
+GROUP BY
+    browser, action
+ORDER BY
+    action_count DESC;
+    
+
+# Most popular pages for each retail store
+SELECT
+    retail_store,
+    page,
+    COUNT(*) AS page_views
+FROM
+    `clickstream-data-analysis.retail_clickstream_dataset.retail_table`
+GROUP BY
+    retail_store, page
+ORDER BY
+    page_views DESC;
+    
+    
+# Number of actions performed by each store
+SELECT
+    retail_store,
+    action,
+    COUNT(*) AS action_count
+FROM
+    `clickstream-data-analysis.retail_clickstream_dataset.retail_table`
+GROUP BY
+    retail_store, action;
+    
+
+# Number of unique visitors per store
+SELECT
+    retail_store,
+    COUNT(DISTINCT user_id) AS unique_visitors
+FROM
+    `clickstream-data-analysis.retail_clickstream_dataset.retail_table`
+GROUP BY
+    retail_store
+ORDER BY unique_visitors DESC;
+
+
+# Relationship between the number of clicks and likelihood of making a purchase
+SELECT
+    clicks,
+    SUM(CASE WHEN purchase = 'yes' THEN 1 ELSE 0 END) AS total_purchases,
+    COUNT(*) AS total_visits,
+    (SUM(CASE WHEN purchase = 'yes' THEN 1 ELSE 0 END) / COUNT(*)) * 100 AS purchase_likelihood
+FROM
+    `clickstream-data-analysis.retail_clickstream_dataset.retail_table`
+GROUP BY
+    clicks
+ORDER BY
+    clicks;
+    
+    
+    
+    
+# Top 10 products by number of actions
+SELECT
+    product_name,
+    COUNT(*) AS action_count
+FROM
+    `clickstream-data-analysis.retail_clickstream_dataset.retail_table`
+GROUP BY
+    product_name
+ORDER BY
+    action_count DESC
+LIMIT 10;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

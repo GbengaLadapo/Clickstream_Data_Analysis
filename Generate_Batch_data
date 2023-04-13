@@ -1,62 +1,76 @@
-import os
-import random
+import io
 import time
-from datetime import datetime, timedelta
-from google.cloud import pubsub_v1
-from faker import Faker
-import numpy as np
+import random
+import json
+from google.cloud import storage
+import datetime
+import csv
 
-PROJECT_ID = "clickstream-data-analysis"
-TOPIC = "clickstream-batch"
-NUM_MESSAGES = 10
+project_id = 'clickstream-data-analysis'
+bucket_name = 'clickstream_batch_data'
+file_prefix = 'clickstream_batch_'
+batch_size = 200
 
-LINE = """\
-{remote_addr} - - [{time_local}] "{request_type} {request_path} HTTP/1.1" {status} {body_bytes_sent} "{http_referer}" "{http_user_agent}" {duration} {clicks} {purchase} {visit_type}\
-"""
+actions = ['click', 'scroll', 'hover', 'search', 'add_to_cart', 'checkout', 'watch_video', 'share', 'like', 'comment', 'download']
+retail_stores = ['Best Buy', 'Walmart', 'Target', 'Macy\'s', 'Costco', 'Nordstrom']
+user_agents = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36 Edge/16.16299',
+               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.81 Safari/537.36',
+               'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:54.0) Gecko/20100101 Firefox/54.0',
+               'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36',
+               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.79 Safari/537.36 Edge/14.14393']
 
-def generate_log_lines():
-    fake = Faker()
-    now = datetime.now()
-    remote_addr = fake.ipv4()
-    time_local = now.strftime('%d/%b/%Y:%H:%M:%S')
-    request_type = random.choice(["GET", "POST", "PUT"])
-    request_path = "/" + fake.uri_path()
+product_names = [
+    "T-shirt", "Shoes", "Jeans", "Dress", "Watch", "Bag",
+    "TV", "Laptop", "Smartphone", "Tablet", "Headphones", "Camera",
+    "Sofa", "Bed", "Dining Table", "Office Chair", "Bookshelf",
+    "Patio Set", "Grill", "Outdoor Heater", "Lawn Mower", "Garden Tools",
+    "Refrigerator", "Washing Machine", "Dryer", "Dishwasher", "Microwave", "Blender",
+    "Necklace", "Earrings", "Bracelet", "Ring"
+]
+product_numbers = list(range(1050, 1099))
 
-    status = np.random.choice([200, 401, 404], p = [0.9, 0.05, 0.05])
-    body_bytes_sent = random.choice(range(5, 1000, 1))
-    http_referer = fake.uri()
-    http_user_agent = fake.user_agent()
-    duration = random.choice(range(1, 1800, 1)) # in seconds
-    clicks = random.choice(range(1, 20, 1))
-    purchase = random.choice(["yes", "no"])
-    visit_type = random.choice(["returning", "first-time"])
+def generate_events(batch_size):
+    events = []
+    for i in range(batch_size):
+        # Generate a random clickstream event
+        event = {
+            'timestamp': datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+            'user_id': random.randint(1, 100),
+            'action': random.choice(actions),
+            'retail_store': random.choice(retail_stores),
+            'page': f'/{random.choice(["home", "about", "products", "contact"])}.html',
+            'browser': random.choice(['Chrome', 'Firefox', 'Edge', 'Safari']),
+            'user_agent': random.choice(user_agents),
+            'ip_address': f'{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}',
+            'product_name': random.choice(product_names),
+            'product_number': random.choice(product_numbers),
+            'duration': random.randint(1, 600),  # Duration in seconds
+            'clicks': random.randint(1, 20),
+            'purchase': random.choice(['yes', 'no']),
+            'visit_type': random.choice(['new', 'returning'])
+        }
+        events.append(event)
+    return events
 
-    log_line = LINE.format(
-        remote_addr=remote_addr,
-        time_local=time_local,
-        request_type=request_type,
-        request_path=request_path,
-        status=status,
-        body_bytes_sent=body_bytes_sent,
-        http_referer=http_referer,
-        http_user_agent=http_user_agent,
-        duration=duration,
-        clicks=clicks,
-        purchase=purchase,
-        visit_type=visit_type
-    )
 
-    return log_line
+def write_csv_file_to_gcs(bucket_name, file_prefix, events):
+    client = storage.Client()
+    bucket = client.get_bucket(bucket_name)
+    filename = f"{file_prefix}{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.csv"
+    blob = bucket.blob(filename)
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=events[0].keys())
+    writer.writeheader()
+    for event in events:
+        writer.writerow(event)
+    blob.upload_from_string(output.getvalue(), 'text/csv')
+    print(f"File {filename} uploaded to bucket {bucket_name}.")
 
-publisher = pubsub_v1.PublisherClient()
-topic_path = publisher.topic_path(PROJECT_ID, TOPIC)
+def generate_and_send_batch_data(request):
+    events = generate_events(batch_size)
+    write_csv_file_to_gcs(bucket_name, file_prefix, events)
+    return f"{len(events)} events generated and sent to Cloud Storage."
 
-for i in range(NUM_MESSAGES):
-    log_lines = ""
-    for j in range(10):
-        log_lines += generate_log_lines() + "\n"
-    data = log_lines.encode("utf-8")
-    future = publisher.publish(topic_path, data)
-    print(f"Published batch {i+1}: {data}")
-    time.sleep(1)
-
+if __name__ == "__main__":
+    result = generate_and_send_batch_data(None)
+    print(result)

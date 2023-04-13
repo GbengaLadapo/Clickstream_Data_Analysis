@@ -1,4 +1,4 @@
-## Average duration spent on the site by users per store
+##Average duration spent on the site by users per store
 SELECT
     retail_store,
     ROUND(AVG(duration),2) AS average_duration_seconds
